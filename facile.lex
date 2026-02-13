@@ -24,7 +24,7 @@ else {
 
 elseif {
     assert(printf("'else' found\n"));
-    return TOK_ELSE;
+    return TOK_ELSEIF;
 }
 
 endif {

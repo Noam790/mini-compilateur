@@ -20,6 +20,17 @@ else
     print z;
 endif
 
+if ((x = 4) or (x <= (1 - 2))) then
+    print x;
+    x := true or false;
+
+    if (true and (x = 10)) then
+        x := true;
+    elseif (x = (true or (z >= 5))) then
+        read y;
+    endif
+endif
+
 while (x > 0) do
     continue
     break

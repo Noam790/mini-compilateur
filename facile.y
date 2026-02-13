@@ -65,7 +65,7 @@ program:
 ;
 
 code:
-    /* empty */
+    /* */
     | code instruction
 ;
 
@@ -80,6 +80,7 @@ affectation:
 expression:
       TOK_IDENTIFIER
     | TOK_NUMBER
+    | boolean
     | expression TOK_ADD expression
     | expression TOK_MUL expression
     | expression TOK_SUB expression
@@ -102,13 +103,13 @@ boolean:
 
 condition:
       TOK_IF TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS
-      TOK_THEN instruction
+      TOK_THEN code
       conditions_end
     ;
 
 conditions_end:
-    TOK_ELSEIF TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS TOK_THEN conditions_end
-    | TOK_ELSE instruction endif
+    TOK_ELSEIF TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS TOK_THEN code conditions_end
+    | TOK_ELSE code endif
     | endif
 ;
 
@@ -116,11 +117,12 @@ endif:
     TOK_END | TOK_ENDIF
 ;
 
+
 while:
     TOK_WHILE TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS TOK_DO code_while endwhile
 
 code_while:
-    TOK_CONTINUE | TOK_BREAK | instruction | code_while
+    /* */ | code_while TOK_CONTINUE | code_while TOK_BREAK | code_while instruction
 
 endwhile:
     TOK_END | TOK_ENDWHILE
