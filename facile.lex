@@ -1,53 +1,9 @@
 %{
 #include <assert.h>
-
-// CONDITIONALS
-#define TOK_IF 258
-#define TOK_THEN 259
-#define TOK_ENDIF 260
-#define TOK_DO 261
-#define TOK_ENDWHILE 262
-#define TOK_WHILE 263
-
-// MACROS
-#define TOK_BREAK 264
-#define TOK_CONTINUE 265
-#define TOK_END 266
-#define TOK_READ 267
-#define TOK_PRINT 268
-
-// OPERATORS
-#define TOK_AFFECTATION 269
-#define TOK_SEMI_COLON 270
-#define TOK_ADD 271
-#define TOK_SUB 272
-#define TOK_MUL 273
-#define TOK_DIV 274
-
-// BOOLEANS
-#define TOK_TRUE 275
-#define TOK_FALSE 276
-#define TOK_NOT 277
-#define TOK_AND 278
-#define TOK_OR 279
-
-// SYMBOLS
-#define TOK_OPENING_PARENTHESIS 280
-#define TOK_CLOSING_PARENTHESIS 281
-#define TOK_SHARP 282
-
-// COMPARATORS
-#define TOK_INFERIOR_THAN 283
-#define TOK_SUPERIOR_THAN 284
-#define TOK_INFERIOR_EQUAL 285
-#define TOK_SUPERIOR_EQUAL 286
-#define TOK_EQUAL 287
-
-// NON_TERMINAL
-#define TOK_NUMBER 288
-#define TOK_IDENTIFIER 289
-
+#include "facile.y.h"
 %}
+
+%option yylineno
 
 %%
 
@@ -59,6 +15,16 @@ if {
 then {
     assert(printf("'then' found\n"));
     return TOK_THEN;
+}
+
+else {
+    assert(printf("'else' found\n"));
+    return TOK_ELSE;
+}
+
+elseif {
+    assert(printf("'else' found\n"));
+    return TOK_ELSE;
 }
 
 endif {
@@ -201,7 +167,7 @@ false {
     return TOK_SUPERIOR_EQUAL;
 }
 
-^(0|[1-9][0-9]*)$ {
+(0|[1-9][0-9]*) {
     assert(printf("number found\n"));
     return TOK_NUMBER;
 }
