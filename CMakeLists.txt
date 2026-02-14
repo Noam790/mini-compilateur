@@ -4,31 +4,43 @@ project(
   facile
   VERSION 0.1.0
   LANGUAGES C)
+
+# Add glib
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GLIB2 REQUIRED glib-2.0)
+include_directories(${GLIB2_INCLUDE_DIRS})
+link_directories(${GLIB2_LIBRARY_DIRS})
+add_definitions(${GLIB2_CFLAGS_OTHER})
+
 # Search for the flex cmake package
 find_package(FLEX)
 # Definition of a scanner
 flex_target(FACILE_SCANNER facile.lex
             "${CMAKE_CURRENT_BINARY_DIR}/facile.lex.c")
+
 # Creation of the "facile" executable Definition of a parser
 find_package(BISON)
 bison_target(FACILE_PARSER facile.y "${CMAKE_CURRENT_BINARY_DIR}/facile.y.c")
-# Creation of the "facile" executable
+
+# pour le CIL
 add_executable(facile ${FLEX_FACILE_SCANNER_OUTPUTS}
                       ${BISON_FACILE_PARSER_OUTPUTS})
+target_link_libraries(facile fl ${GLIB2_LIBRARIES})
 
-# Add flex library to the "facile" executable
-target_link_libraries(facile fl)
+# pour les tests
+add_executable(facile_test ${FLEX_FACILE_SCANNER_OUTPUTS}
+                           ${BISON_FACILE_PARSER_OUTPUTS} main_test.c)
+target_compile_definitions(facile_test PRIVATE FACILE_TEST)
+target_link_libraries(facile_test fl ${GLIB2_LIBRARIES})
 
 # Make tests
 enable_testing()
 file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.fac")
 
 foreach(testfile ${TEST_FILES})
-    get_filename_component(testname ${testfile} NAME_WE)
-    add_test(NAME ${testname}
-             COMMAND facile ${testfile})
+  get_filename_component(testname ${testfile} NAME_WE)
+  add_test(NAME ${testname} COMMAND facile_test ${testfile})
 endforeach()
-
 
 # Add zip generator
 set(CPACK_SOURCE_GENERATOR "ZIP")
