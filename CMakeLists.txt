@@ -18,6 +18,18 @@ add_executable(facile ${FLEX_FACILE_SCANNER_OUTPUTS}
 
 # Add flex library to the "facile" executable
 target_link_libraries(facile fl)
+
+# Make tests
+enable_testing()
+file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.fac")
+
+foreach(testfile ${TEST_FILES})
+    get_filename_component(testname ${testfile} NAME_WE)
+    add_test(NAME ${testname}
+             COMMAND facile ${testfile})
+endforeach()
+
+
 # Add zip generator
 set(CPACK_SOURCE_GENERATOR "ZIP")
 set(CPACK_SOURCE_IGNORE_FILES "build;~$;${CPACK_SOURCE_IGNORE_FILES}")

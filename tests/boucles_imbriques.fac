@@ -1,0 +1,12 @@
+i := 0;
+
+while (i < 3) do
+    j := 0;
+
+    while (j < 2) do
+        print j;
+        j := j + 1;
+    endwhile
+
+    i := i + 1;
+endwhile

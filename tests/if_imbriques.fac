@@ -1,0 +1,13 @@
+x := 10;
+y := 5;
+z := 3;
+
+if (x > y) then
+    if (y > z) then
+        print y;
+    else
+        print z;
+    endif
+else
+    print x;
+endif

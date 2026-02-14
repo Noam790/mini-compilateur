@@ -1,0 +1,15 @@
+x := 0;
+
+while (x < 10) do
+    x := x + 1;
+
+    if (true) then
+        x := 8;
+    endif
+
+    if (x = 8) then
+        x := x - 1;
+    endif
+
+    print x;
+endwhile

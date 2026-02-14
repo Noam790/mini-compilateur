@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 extern int yylex(void);
+extern FILE *yyin;
 int yyerror(const char *msg);
 extern int yylineno;
 %}
@@ -140,6 +141,13 @@ int yyerror(const char *msg) {
     return 0;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    if (argc > 1) {
+        yyin = fopen(argv[1], "r");
+        if (!yyin) {
+            perror(argv[1]);
+            return 1;
+        }
+    }
     return yyparse();
 }
