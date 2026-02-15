@@ -22,24 +22,17 @@ flex_target(FACILE_SCANNER facile.lex
 find_package(BISON)
 bison_target(FACILE_PARSER facile.y "${CMAKE_CURRENT_BINARY_DIR}/facile.y.c")
 
-# pour le CIL
 add_executable(facile ${FLEX_FACILE_SCANNER_OUTPUTS}
                       ${BISON_FACILE_PARSER_OUTPUTS})
 target_link_libraries(facile fl ${GLIB2_LIBRARIES})
 
-# pour les tests
-add_executable(facile_test ${FLEX_FACILE_SCANNER_OUTPUTS}
-                           ${BISON_FACILE_PARSER_OUTPUTS} main_test.c)
-target_compile_definitions(facile_test PRIVATE FACILE_TEST)
-target_link_libraries(facile_test fl ${GLIB2_LIBRARIES})
-
 # Make tests
 enable_testing()
-file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.fac")
+file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.facile")
 
 foreach(testfile ${TEST_FILES})
   get_filename_component(testname ${testfile} NAME_WE)
-  add_test(NAME ${testname} COMMAND facile_test ${testfile})
+  add_test(NAME ${testname} COMMAND facile ${testfile})
 endforeach()
 
 # Add zip generator

@@ -12,68 +12,110 @@ extern int yylineno;
 char *module_name;
 FILE *stream;
 GHashTable *table;
+
+void begin_code(void);
+void end_code(void);
+void produce_code(GNode *node);
 %}
 
+%code requires {
+    #include <glib.h>
+}
+
+%union {
+    gulong number;
+    gchar *string;
+    GNode * node;
+}
+
 /* CONDITIONALS */
-%token TOK_IF 258
-%token TOK_THEN 259
-%token TOK_ELSE 260
-%token TOK_ELSEIF 261
-%token TOK_ENDIF 262
-%token TOK_DO 263
-%token TOK_ENDWHILE 264
-%token TOK_WHILE 265
+%token TOK_IF "if"
+%token TOK_THEN "then"
+%token TOK_ELSE "else"
+%token TOK_ELSEIF "elseif"
+%token TOK_ENDIF "endif"
+%token TOK_DO "do"
+%token TOK_ENDWHILE "endwhile"
+%token TOK_WHILE "while"
 
 /* MACROS */
-%token TOK_BREAK 266
-%token TOK_CONTINUE 267
-%token TOK_END 268
-%token TOK_READ 269
-%token TOK_PRINT 270
+%token TOK_BREAK "break"
+%token TOK_CONTINUE "continue"
+%token TOK_END "end"
+%token TOK_READ "read"
+%token TOK_PRINT "print"
 
 /* OPERATORS */
-%token TOK_AFFECTATION 271
-%token TOK_SEMI_COLON 272
-%token TOK_ADD 273
-%token TOK_SUB 274
-%token TOK_MUL 275
-%token TOK_DIV 276
+%token TOK_AFFECTATION ":="
+%token TOK_SEMI_COLON ";"
+%left TOK_ADD "+"
+%left TOK_SUB "-"
+%left TOK_MUL "*"
+%left TOK_DIV "/"
 
 /* BOOLEANS */
-%token TOK_TRUE 277
-%token TOK_FALSE 278
-%token TOK_NOT 279
-%token TOK_AND 280
-%token TOK_OR 281
+%token TOK_TRUE "true"
+%token TOK_FALSE "false"
+%right TOK_NOT "not"
+%left TOK_AND "and"
+%left TOK_OR "or"
 
 /* SYMBOLS */
-%token TOK_OPENING_PARENTHESIS 282
-%token TOK_CLOSING_PARENTHESIS 283
-%token TOK_SHARP 284
+%token TOK_OPENING_PARENTHESIS "("
+%token TOK_CLOSING_PARENTHESIS ")"
+%token TOK_SHARP "#"
 
 /* COMPARATORS */
-%token TOK_INFERIOR_THAN 285
-%token TOK_SUPERIOR_THAN 286
-%token TOK_INFERIOR_EQUAL 287
-%token TOK_SUPERIOR_EQUAL 288
-%token TOK_EQUAL 289
+%token TOK_INFERIOR_THAN "<"
+%token TOK_SUPERIOR_THAN ">"
+%token TOK_INFERIOR_EQUAL "<="
+%token TOK_SUPERIOR_EQUAL ">="
+%token TOK_EQUAL "="
 
 /* TERMINALS */
-%token TOK_NUMBER 290
-%token TOK_IDENTIFIER 291
+%token<number> TOK_NUMBER "number"
+%token<string> TOK_IDENTIFIER "identifier"
 
+%type<node> code
+%type<node> expression
+%type<node> instruction
+%type<node> identifier
+%type<node> print
+%type<node> read
+%type<node> affectation
+%type<node> number
+%type<node> program
+%type<node> boolean
+%type<node> condition
+%type<node> conditions_end
+%type<node> endif
+%type<node> while
+%type<node> code_while
+%type<node> endwhile
 
 %define parse.error verbose
 
 %%
 
 program:
-    code
+    code {
+        begin_code();
+        produce_code($1);
+        end_code();
+        g_node_destroy($1);
+    }
 ;
 
 code:
-    /* */
-    | code instruction
+    code instruction {
+        $$ = g_node_new("code");
+        g_node_append($$, $1);
+        g_node_append($$, $2);
+    }
+        |
+    {
+        $$ = g_node_new("");
+    }
 ;
 
 instruction:
@@ -81,64 +123,215 @@ instruction:
 ;
 
 affectation:
-    TOK_IDENTIFIER TOK_AFFECTATION expression TOK_SEMI_COLON
+    identifier TOK_AFFECTATION expression TOK_SEMI_COLON
+    {
+        $$ = g_node_new("affectation");
+        g_node_append($$, $1);
+        g_node_append($$, $3);
+    }
 ;
+
+print:
+    TOK_PRINT expression TOK_SEMI_COLON
+    {
+        $$ = g_node_new("print");
+        g_node_append($$, $2);
+    }
+;
+
+read:
+    TOK_READ identifier TOK_SEMI_COLON
+    {
+        $$ = g_node_new("read");
+        g_node_append($$, $2);
+    }
+;
+
+
 
 expression:
-      TOK_IDENTIFIER
-    | TOK_NUMBER
+      identifier
+    | number
     | boolean
     | expression TOK_ADD expression
+        {
+            $$ = g_node_new("add");
+            g_node_append($$, $1);
+            g_node_append($$, $3);
+        }
     | expression TOK_MUL expression
+        {
+            $$ = g_node_new("mul");
+            g_node_append($$, $1);
+            g_node_append($$, $3);
+        }
     | expression TOK_SUB expression
+        {
+            $$ = g_node_new("sub");
+            g_node_append($$, $1);
+            g_node_append($$, $3);
+        }
     | expression TOK_DIV expression
+        {
+            $$ = g_node_new("div");
+            g_node_append($$, $1);
+            g_node_append($$, $3);
+        }
     | TOK_OPENING_PARENTHESIS expression TOK_CLOSING_PARENTHESIS
+        {
+            $$ = $2;
+        }
 ;
 
+identifier:
+    TOK_IDENTIFIER
+    {
+        $$ = g_node_new("identifier");
+        gulong value = (gulong) g_hash_table_lookup(table, $1);
+
+        if (!value) {
+            value = g_hash_table_size(table) + 1;
+            g_hash_table_insert(table, strdup($1), (gpointer) value);
+        }
+        g_node_append_data($$, (gpointer)value);
+    }
+;
+
+number:
+    TOK_NUMBER
+    {
+        $$ = g_node_new("number");
+        g_node_append_data($$, (gpointer)$1);
+    }
+;
+
+
 boolean:
-    TOK_TRUE | TOK_FALSE
-    | expression TOK_EQUAL expression
-    | expression TOK_SUPERIOR_THAN expression
-    | expression TOK_INFERIOR_THAN expression
-    | expression TOK_SUPERIOR_EQUAL expression
-    | expression TOK_INFERIOR_EQUAL expression
-    | expression TOK_SHARP expression
-    | TOK_NOT boolean
-    | boolean TOK_OR boolean
-    | boolean TOK_AND boolean
-    | TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS
+      TOK_TRUE {
+          $$ = g_node_new("true");
+      }
+    | TOK_FALSE {
+          $$ = g_node_new("false");
+      }
+    | expression TOK_EQUAL expression {
+          $$ = g_node_new("equal");
+          g_node_append($$, $1);
+          g_node_append($$, $3);
+      }
+    | expression TOK_SUPERIOR_THAN expression {
+          $$ = g_node_new("superior");
+          g_node_append($$, $1);
+          g_node_append($$, $3);
+      }
+    | expression TOK_INFERIOR_THAN expression {
+          $$ = g_node_new("inferior");
+          g_node_append($$, $1);
+          g_node_append($$, $3);
+      }
+    | expression TOK_SUPERIOR_EQUAL expression {
+          $$ = g_node_new("superior_equal");
+          g_node_append($$, $1);
+          g_node_append($$, $3);
+      }
+    | expression TOK_INFERIOR_EQUAL expression {
+          $$ = g_node_new("inferior_equal");
+          g_node_append($$, $1);
+          g_node_append($$, $3);
+      }
+    | expression TOK_SHARP expression {
+          $$ = g_node_new("sharp");
+          g_node_append($$, $1);
+          g_node_append($$, $3);
+      }
+    | TOK_NOT boolean {
+          $$ = g_node_new("not");
+          g_node_append($$, $2);
+      }
+    | boolean TOK_OR boolean {
+          $$ = g_node_new("or");
+          g_node_append($$, $1);
+          g_node_append($$, $3);
+      }
+    | boolean TOK_AND boolean {
+          $$ = g_node_new("and");
+          g_node_append($$, $1);
+          g_node_append($$, $3);
+      }
+    | TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS {
+          $$ = $2;
+      }
+;
 
 condition:
       TOK_IF TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS
       TOK_THEN code
-      conditions_end
-    ;
+      conditions_end {
+          $$ = g_node_new("if");
+          g_node_append($$, $3);
+          g_node_append($$, $6);
+          g_node_append($$, $7);
+      }
+;
 
 conditions_end:
-    TOK_ELSEIF TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS TOK_THEN code conditions_end
-    | TOK_ELSE code endif
-    | endif
+      TOK_ELSEIF TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS
+      TOK_THEN code conditions_end {
+          $$ = g_node_new("elseif");
+          g_node_append($$, $3);
+          g_node_append($$, $6);
+          g_node_append($$, $7);
+      }
+    | TOK_ELSE code endif {
+          $$ = g_node_new("else");
+          g_node_append($$, $2);
+          g_node_append($$, $3);
+      }
+    | endif {
+          $$ = $1;
+      }
 ;
 
 endif:
-    TOK_END | TOK_ENDIF
+      TOK_END {
+          $$ = g_node_new("end");
+      }
+    | TOK_ENDIF {
+          $$ = g_node_new("endif");
+      }
 ;
 
-
 while:
-    TOK_WHILE TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS TOK_DO code_while endwhile
+      TOK_WHILE TOK_OPENING_PARENTHESIS boolean TOK_CLOSING_PARENTHESIS
+      TOK_DO code_while endwhile {
+          $$ = g_node_new("while");
+          g_node_append($$, $3);
+          g_node_append($$, $6);
+          g_node_append($$, $7);
+      }
+;
 
 code_while:
-    /* */ | code_while TOK_CONTINUE | code_while TOK_BREAK | code_while instruction
+    code_while TOK_CONTINUE {
+          $$ = g_node_new("continue");
+      }
+    | code_while TOK_BREAK {
+          $$ = g_node_new("break");
+      }
+    | code_while instruction {
+          $$ = g_node_new("code_while");
+          g_node_append($$, $1);
+          g_node_append($$, $2);
+      }
+;
 
 endwhile:
-    TOK_END | TOK_ENDWHILE
-
-read:
-    TOK_READ TOK_IDENTIFIER TOK_SEMI_COLON
-
-print:
-    TOK_PRINT TOK_IDENTIFIER TOK_SEMI_COLON
+      TOK_END {
+          $$ = g_node_new("end");
+      }
+    | TOK_ENDWHILE {
+          $$ = g_node_new("endwhile");
+      }
+;
 
 %%
 
@@ -147,7 +340,112 @@ int yyerror(const char *msg) {
     return 0;
 }
 
-#ifndef FACILE_TEST
+void produce_code(GNode *node)
+{
+    if (!node || !node->data) return;
+
+    const char *type = (const char *)node->data;
+
+    if (g_strcmp0(type, "code") == 0) {
+        GNode *c0 = g_node_nth_child(node, 0);
+        GNode *c1 = g_node_nth_child(node, 1);
+        if (c0) produce_code(c0);
+        if (c1) produce_code(c1);
+    }
+    else if (g_strcmp0(type, "affectation") == 0) {
+        GNode *id = g_node_nth_child(node, 0);
+        GNode *expr = g_node_nth_child(node, 1);
+        if (expr) produce_code(expr);
+        if (id) {
+            GNode *id_val = g_node_nth_child(id, 0);
+            if (id_val)
+                fprintf(stream, " stloc\t%ld\n", (long)GPOINTER_TO_INT(id_val->data) - 1);
+        }
+    }
+    else if (g_strcmp0(type, "add") == 0 ||
+             g_strcmp0(type, "sub") == 0 ||
+             g_strcmp0(type, "mul") == 0 ||
+             g_strcmp0(type, "div") == 0) {
+        GNode *left = g_node_nth_child(node, 0);
+        GNode *right = g_node_nth_child(node, 1);
+        if (left) produce_code(left);
+        if (right) produce_code(right);
+        if (g_strcmp0(type, "add") == 0) fprintf(stream, " add\n");
+        else if (g_strcmp0(type, "sub") == 0) fprintf(stream, " sub\n");
+        else if (g_strcmp0(type, "mul") == 0) fprintf(stream, " mul\n");
+        else if (g_strcmp0(type, "div") == 0) fprintf(stream, " div\n");
+    }
+    else if (g_strcmp0(type, "number") == 0) {
+        GNode *num = g_node_nth_child(node, 0);
+        if (num)
+            fprintf(stream, " ldc.i4\t%ld\n", (long)GPOINTER_TO_INT(num->data));
+    }
+    else if (g_strcmp0(type, "identifier") == 0) {
+        GNode *id_val = g_node_nth_child(node, 0);
+        if (id_val)
+            fprintf(stream, " ldloc\t%ld\n", (long)GPOINTER_TO_INT(id_val->data) - 1);
+    }
+    else if (g_strcmp0(type, "print") == 0) {
+        GNode *expr = g_node_nth_child(node, 0);
+        if (expr) produce_code(expr);
+        fprintf(stream, " call void class [mscorlib]System.Console::WriteLine(int32)\n");
+    }
+    else if (g_strcmp0(type, "read") == 0) {
+        GNode *id = g_node_nth_child(node, 0);
+        fprintf(stream, " call string class [mscorlib]System.Console::ReadLine()\n");
+        fprintf(stream, " call int32 int32::Parse(string)\n");
+        if (id) {
+            GNode *id_val = g_node_nth_child(id, 0);
+            if (id_val)
+                fprintf(stream, " stloc\t%ld\n", (long)GPOINTER_TO_INT(id_val->data) - 1);
+        }
+    }
+    else if (g_strcmp0(type, "if") == 0 || g_strcmp0(type, "elseif") == 0 ||
+             g_strcmp0(type, "else") == 0) {
+        GNode *cond = g_node_nth_child(node, 0);
+        GNode *then_code = g_node_nth_child(node, 1);
+        GNode *else_code = g_node_nth_child(node, 2);
+
+        if (cond) produce_code(cond);
+        if (then_code) produce_code(then_code);
+        if (else_code) produce_code(else_code);
+    }
+    else if (g_strcmp0(type, "while") == 0) {
+        GNode *cond = g_node_nth_child(node, 0);
+        GNode *body = g_node_nth_child(node, 1);
+        if (cond) produce_code(cond);
+        if (body) produce_code(body);
+    }
+    else if (g_strcmp0(type, "continue") == 0 ||
+             g_strcmp0(type, "break") == 0 ||
+             g_strcmp0(type, "end") == 0 ||
+             g_strcmp0(type, "endwhile") == 0) {
+        return;
+    }
+    else {
+        for (GNode *child = node->children; child != NULL; child = child->next) {
+            produce_code(child);
+        }
+    }
+}
+
+
+void begin_code(void)
+{
+    fprintf(stream, ".assembly extern mscorlib {}\n");
+    fprintf(stream, ".assembly %s {}\n", module_name);
+    fprintf(stream, ".method static void Main() cil managed {\n");
+    fprintf(stream, ".entrypoint\n");
+    fprintf(stream, ".maxstack 32\n");
+}
+
+void end_code(void)
+{
+    fprintf(stream, " ret\n");
+    fprintf(stream, "}\n");
+}
+
+
 int main(int argc, char *argv[]) {
     if (argc == 2) {
         char *file_name_input = argv[1];
@@ -220,4 +518,3 @@ int main(int argc, char *argv[]) {
 
     return EXIT_SUCCESS;
 }
-#endif
