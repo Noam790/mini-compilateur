@@ -322,6 +322,10 @@ code_while:
           g_node_append($$, $1);
           g_node_append($$, $2);
       }
+    |
+    {
+        $$ = g_node_new("");
+    }
 ;
 
 endwhile:
