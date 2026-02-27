@@ -27,5 +27,3 @@ while (mod # 0) do
         print diviseur;
     endif
 endwhile
-
-print mod;

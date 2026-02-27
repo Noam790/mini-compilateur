@@ -12,6 +12,11 @@ extern int yylineno;
 char *module_name;
 FILE *stream;
 GHashTable *table;
+int label_counter = 0;
+
+int loop_start_stack[256];
+int loop_end_stack[256];
+int loop_depth = 0;
 
 void begin_code(void);
 void end_code(void);
@@ -322,6 +327,9 @@ code_while:
           g_node_append($$, $1);
           g_node_append($$, $2);
       }
+    | {
+        $$ = g_node_new("");
+    }
 ;
 
 endwhile:
@@ -346,7 +354,7 @@ void produce_code(GNode *node)
 
     const char *type = (const char *)node->data;
 
-    if (g_strcmp0(type, "code") == 0) {
+    if (g_strcmp0(type, "code") == 0 || g_strcmp0(type, "code_while") == 0) {
         GNode *c0 = g_node_nth_child(node, 0);
         GNode *c1 = g_node_nth_child(node, 1);
         if (c0) produce_code(c0);
@@ -362,10 +370,8 @@ void produce_code(GNode *node)
                 fprintf(stream, " stloc\t%ld\n", (long)GPOINTER_TO_INT(id_val->data) - 1);
         }
     }
-    else if (g_strcmp0(type, "add") == 0 ||
-             g_strcmp0(type, "sub") == 0 ||
-             g_strcmp0(type, "mul") == 0 ||
-             g_strcmp0(type, "div") == 0) {
+    else if (g_strcmp0(type, "add") == 0 || g_strcmp0(type, "sub") == 0 ||
+             g_strcmp0(type, "mul") == 0 || g_strcmp0(type, "div") == 0) {
         GNode *left = g_node_nth_child(node, 0);
         GNode *right = g_node_nth_child(node, 1);
         if (left) produce_code(left);
@@ -374,6 +380,77 @@ void produce_code(GNode *node)
         else if (g_strcmp0(type, "sub") == 0) fprintf(stream, " sub\n");
         else if (g_strcmp0(type, "mul") == 0) fprintf(stream, " mul\n");
         else if (g_strcmp0(type, "div") == 0) fprintf(stream, " div\n");
+    }
+    /* === OPÉRATEURS LOGIQUES === */
+    else if (g_strcmp0(type, "and") == 0 || g_strcmp0(type, "or") == 0) {
+        GNode *left = g_node_nth_child(node, 0);
+        GNode *right = g_node_nth_child(node, 1);
+        if (left) produce_code(left);
+        if (right) produce_code(right);
+        if (g_strcmp0(type, "and") == 0) fprintf(stream, " and\n");
+        else if (g_strcmp0(type, "or") == 0) fprintf(stream, " or\n");
+    }
+    else if (g_strcmp0(type, "not") == 0) {
+        GNode *child = g_node_nth_child(node, 0);
+        if (child) produce_code(child);
+        fprintf(stream, " ldc.i4.0\n");
+        fprintf(stream, " ceq\n");
+    }
+    /* === COMPARAISONS === */
+    else if (g_strcmp0(type, "inferior") == 0) {
+        GNode *left = g_node_nth_child(node, 0);
+        GNode *right = g_node_nth_child(node, 1);
+        if (left) produce_code(left);
+        if (right) produce_code(right);
+        fprintf(stream, " clt\n");
+    }
+    else if (g_strcmp0(type, "superior") == 0) {
+        GNode *left = g_node_nth_child(node, 0);
+        GNode *right = g_node_nth_child(node, 1);
+        if (left) produce_code(left);
+        if (right) produce_code(right);
+        fprintf(stream, " cgt\n");
+    }
+    else if (g_strcmp0(type, "equal") == 0) {
+        GNode *left = g_node_nth_child(node, 0);
+        GNode *right = g_node_nth_child(node, 1);
+        if (left) produce_code(left);
+        if (right) produce_code(right);
+        fprintf(stream, " ceq\n");
+    }
+    else if (g_strcmp0(type, "inferior_equal") == 0) {
+        GNode *left = g_node_nth_child(node, 0);
+        GNode *right = g_node_nth_child(node, 1);
+        if (left) produce_code(left);
+        if (right) produce_code(right);
+        fprintf(stream, " cgt\n");
+        fprintf(stream, " ldc.i4.0\n");
+        fprintf(stream, " ceq\n");
+    }
+    else if (g_strcmp0(type, "superior_equal") == 0) {
+        GNode *left = g_node_nth_child(node, 0);
+        GNode *right = g_node_nth_child(node, 1);
+        if (left) produce_code(left);
+        if (right) produce_code(right);
+        fprintf(stream, " clt\n");
+        fprintf(stream, " ldc.i4.0\n");
+        fprintf(stream, " ceq\n");
+    }
+    else if (g_strcmp0(type, "sharp") == 0) {
+        GNode *left = g_node_nth_child(node, 0);
+        GNode *right = g_node_nth_child(node, 1);
+        if (left) produce_code(left);
+        if (right) produce_code(right);
+        fprintf(stream, " ceq\n");
+        fprintf(stream, " ldc.i4.0\n");
+        fprintf(stream, " ceq\n");
+    }
+    /* === BOOLÉENS ET PRIMITIVES === */
+    else if (g_strcmp0(type, "true") == 0) {
+        fprintf(stream, " ldc.i4.1\n");
+    }
+    else if (g_strcmp0(type, "false") == 0) {
+        fprintf(stream, " ldc.i4.0\n");
     }
     else if (g_strcmp0(type, "number") == 0) {
         GNode *num = g_node_nth_child(node, 0);
@@ -400,26 +477,65 @@ void produce_code(GNode *node)
                 fprintf(stream, " stloc\t%ld\n", (long)GPOINTER_TO_INT(id_val->data) - 1);
         }
     }
-    else if (g_strcmp0(type, "if") == 0 || g_strcmp0(type, "elseif") == 0 ||
-             g_strcmp0(type, "else") == 0) {
+    /* === IF / ELSEIF / ELSE === */
+    else if (g_strcmp0(type, "if") == 0 || g_strcmp0(type, "elseif") == 0) {
         GNode *cond = g_node_nth_child(node, 0);
         GNode *then_code = g_node_nth_child(node, 1);
         GNode *else_code = g_node_nth_child(node, 2);
 
-        if (cond) produce_code(cond);
-        if (then_code) produce_code(then_code);
+        int end_label = label_counter++;
+        int else_label = label_counter++;
+
+        if (cond) produce_code(cond);        
+        fprintf(stream, " brfalse IL_%04x_else\n", else_label);
+
+        if (then_code) produce_code(then_code);        
+        fprintf(stream, " br IL_%04x_end\n", end_label);
+
+        fprintf(stream, " IL_%04x_else:\n", else_label);
+        if (else_code) produce_code(else_code);
+
+        fprintf(stream, " IL_%04x_end:\n", end_label);
+    }
+    else if (g_strcmp0(type, "else") == 0) {
+        GNode *else_code = g_node_nth_child(node, 0);
         if (else_code) produce_code(else_code);
     }
+    /* === WHILE === */
     else if (g_strcmp0(type, "while") == 0) {
         GNode *cond = g_node_nth_child(node, 0);
         GNode *body = g_node_nth_child(node, 1);
+
+        int start_label = label_counter++;
+        int end_label = label_counter++;
+
+        loop_start_stack[loop_depth] = start_label;
+        loop_end_stack[loop_depth] = end_label;
+        loop_depth++;
+
+        fprintf(stream, " IL_%04x_start:\n", start_label);
+
         if (cond) produce_code(cond);
+        fprintf(stream, " brfalse IL_%04x_end\n", end_label);
+
         if (body) produce_code(body);
+        fprintf(stream, " br IL_%04x_start\n", start_label);
+        fprintf(stream, " IL_%04x_end:\n", end_label);
+        
+        loop_depth--;
     }
-    else if (g_strcmp0(type, "continue") == 0 ||
-             g_strcmp0(type, "break") == 0 ||
-             g_strcmp0(type, "end") == 0 ||
-             g_strcmp0(type, "endwhile") == 0) {
+    /* === BREAK ET CONTINUE === */
+    else if (g_strcmp0(type, "continue") == 0) {
+        if (loop_depth > 0) {
+            fprintf(stream, " br IL_%04x_start\n", loop_start_stack[loop_depth - 1]);
+        }
+    }
+    else if (g_strcmp0(type, "break") == 0) {
+        if (loop_depth > 0) {
+            fprintf(stream, " br IL_%04x_end\n", loop_end_stack[loop_depth - 1]);
+        }
+    }
+    else if (g_strcmp0(type, "end") == 0 || g_strcmp0(type, "endwhile") == 0 || g_strcmp0(type, "endif") == 0) {
         return;
     }
     else {
@@ -440,7 +556,7 @@ void begin_code(void)
     fprintf(stream, ".method static void Main() cil managed {\n");
     fprintf(stream, ".entrypoint\n");
 
-    if (count > 0) { // sinon fonctionne pas car variables pas initialisées
+    if (count > 0) {
         fprintf(stream, ".locals init (");
         for (int i = 0; i < count; i++) {
             fprintf(stream, "int32%s", (i == count - 1) ? "" : ", ");
