@@ -434,9 +434,22 @@ void begin_code(void)
 {
     fprintf(stream, ".assembly extern mscorlib {}\n");
     fprintf(stream, ".assembly %s {}\n", module_name);
+
+    int count = g_hash_table_size(table);
+
     fprintf(stream, ".method static void Main() cil managed {\n");
     fprintf(stream, ".entrypoint\n");
+
+    if (count > 0) { // sinon fonctionne pas car variables pas initialisées
+        fprintf(stream, ".locals init (");
+        for (int i = 0; i < count; i++) {
+            fprintf(stream, "int32%s", (i == count - 1) ? "" : ", ");
+        }
+        fprintf(stream, ")\n");
+    }
+
     fprintf(stream, ".maxstack 32\n");
+    
 }
 
 void end_code(void)

@@ -1,0 +1,31 @@
+read a;
+read b;
+
+dividende := 1;
+diviseur := 1;
+
+if (a > b) then
+    dividende := a;
+    diviseur := b;
+else
+    dividende := b;
+    diviseur := a;
+endif
+
+mod := 1;
+produit := 1;
+
+while (mod # 0) do
+    quotient := dividende / diviseur;
+    produit := diviseur * quotient;
+    mod := dividende - produit;
+
+    if (mod # 0) then
+        dividende := diviseur;
+        diviseur := mod;
+    else
+        print diviseur;
+    endif
+endwhile
+
+print mod;

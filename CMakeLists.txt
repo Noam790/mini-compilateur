@@ -33,6 +33,27 @@ file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.facile")
 foreach(testfile ${TEST_FILES})
   get_filename_component(testname ${testfile} NAME_WE)
   add_test(NAME ${testname} COMMAND facile ${testfile})
+
+  set(il_file "${CMAKE_CURRENT_BINARY_DIR}/${testname}.il")
+  set(exe_file "${CMAKE_CURRENT_BINARY_DIR}/${testname}.exe")
+
+  # génerer les fichiers assembleur automatiquement
+  add_custom_command(
+    OUTPUT ${il_file}
+    COMMAND facile ${testfile}
+    DEPENDS facile ${testfile}
+    COMMENT "Génération du MSIL pour ${testname}"
+  )
+
+  # generer les .exe à partir des .il pour nos tests de pgcd
+  add_custom_command(
+    OUTPUT ${exe_file}
+    COMMAND ilasm ${il_file} /OUTPUT=${exe_file}
+    COMMAND chmod +x ${exe_file}
+    DEPENDS ${il_file}
+  )
+
+  add_custom_target(gen_${testname} ALL DEPENDS ${exe_file})
 endforeach()
 
 # Add zip generator

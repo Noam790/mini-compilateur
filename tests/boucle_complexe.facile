@@ -1,14 +1,13 @@
 x := 0;
-
 while (x < 10) do
     x := x + 1;
 
-    if (true) then
+    if (false) then
         x := 8;
     endif
 
     if (x = 8) then
-        x := x - 1;
+        x := 10;
     endif
 
     print x;
